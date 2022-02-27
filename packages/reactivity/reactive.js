@@ -7,9 +7,22 @@ const trigger = (target, key) => {
   if (!depsMap) return;
   const deps = depsMap.get(key);
   if (!deps) return;
-  const effectsToRun = new Set(deps);
+  const effectsToRun = new Set();
+  // 增加触发守卫
+  deps.forEach((effect) => {
+    if (effect !== activeEffect) {
+      effectsToRun.add(effect);
+    }
+  });
   // 执行依赖集合里的所有依赖
-  effectsToRun.forEach((effectFn) => effectFn());
+  effectsToRun.forEach((effectFn) => {
+    // 如果传入调度器，则交由调度器执行
+    if (effectFn.options.scheduler) {
+      effectFn.options.scheduler();
+    } else {
+      effectFn();
+    }
+  });
 };
 // 追踪依赖
 const track = (target, key) => {
@@ -40,3 +53,5 @@ const reactive = (data) => {
 };
 
 export default reactive;
+
+export { track, trigger };

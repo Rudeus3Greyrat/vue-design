@@ -1,16 +1,6 @@
-import reactive from './reactive.js';
 import effect from './effect.js';
+import reactive from './reactive.js';
+import computed from './computed.js';
+import watch from './watch.js';
 
-let data = {
-  message: 'Hello',
-  name: 'Mei',
-};
-
-const obj = reactive(data);
-
-effect(() => {
-  effect(() => console.log(obj.name));
-  console.log(obj.message);
-});
-
-window.setTimeout(() => (obj.message = 'World'), 4000);
+export { effect, reactive, computed, watch };

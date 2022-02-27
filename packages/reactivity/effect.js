@@ -12,7 +12,7 @@ const cleanup = (effectFn) => {
   effectFn.deps = [];
 };
 // 注册副作用函数的函数
-const effect = (fn) => {
+const effect = (fn,options={}) => {
   const effectFn = () => {
     // 打扫屋子再请客
     cleanup(effectFn);
@@ -21,14 +21,22 @@ const effect = (fn) => {
     // 将当前副作用函数入栈
     effectStack.push(effectFn);
     // 实际调用副作用函数
-    fn();
+    const res = fn();
     // 当前副作用函数调用完成后，出栈，并把activeEffect还原为上一个值
     effectStack.pop();
     activeEffect = effectStack[effectStack.length - 1];
+    
+    return res;
   };
+
+  // 将options挂载到effectFn上
+  effectFn.options=options
 
   effectFn.deps = [];
 
-  effectFn();
+  // 如果传入lazy，则先不执行
+  if(!options.lazy) effectFn();
+
+  return effectFn
 };
 export default effect;
