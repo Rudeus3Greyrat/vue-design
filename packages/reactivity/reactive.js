@@ -47,17 +47,22 @@ const track = (target, key) => {
   deps.add(activeEffect);
 };
 const reactive = (data) => {
-  const obj = new Proxy(data, {
+  return new Proxy(data, {
     get(target, p, receiver) {
+      if(p==='raw') return target
       // 在读取时追踪依赖
       track(target, p);
       return Reflect.get(target, p, receiver);
     },
     set(target, p, value, receiver) {
+      const oldVal = target[p]
       const type=Object.prototype.hasOwnProperty.call(target,p)?'SET':'ADD'
       // 在设置后触发依赖
       const res=Reflect.set(target, p, value, receiver);
-      trigger(target, p,type);
+      // 屏蔽原型引起的更新
+      if(receiver.raw===target){
+        if((oldVal!==value)&&(oldVal===oldVal||value===value)) trigger(target, p,type)
+      }
       return res;
     },
     has(target, p) {
@@ -79,7 +84,6 @@ const reactive = (data) => {
       return res
     }
   });
-  return obj;
 };
 
 export default reactive;
