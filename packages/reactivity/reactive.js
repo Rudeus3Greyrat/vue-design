@@ -36,17 +36,15 @@ const track = (target, key) => {
 };
 const reactive = (data) => {
   const obj = new Proxy(data, {
-    get(target, key) {
-      const res = Reflect.get(target, key);
+    get(target, key, receiver) {
       // 在读取时追踪依赖
       track(target, key);
-      return res;
+      return Reflect.get(target, key, receiver);
     },
-    set(target, key, value) {
-      const res = Reflect.set(target, key, value);
+    set(target, key, value, receiver) {
       // 在设置后触发依赖
       trigger(target, key);
-      return res;
+      return Reflect.set(target, key, value, receiver);
     },
   });
   return obj;
