@@ -1,4 +1,4 @@
-import { effect } from './effect.js';
+import  effect  from './effect.js';
 
 const traverse = (value, seen = new Set()) => {
   if (typeof value !== 'object' || value === null || seen.has(value)) return;

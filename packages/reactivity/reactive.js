@@ -46,15 +46,26 @@ const track = (target, key) => {
   // 最终目的是把当前的effect收集进入依赖集合
   deps.add(activeEffect);
 };
-const reactive = (data) => {
-  return new Proxy(data, {
+const createReactive=(obj,isShallow=false,isReadonly=false)=>{
+  return new Proxy(obj, {
     get(target, p, receiver) {
       if(p==='raw') return target
+      const res = Reflect.get(target, p, receiver)
       // 在读取时追踪依赖
-      track(target, p);
-      return Reflect.get(target, p, receiver);
+      if(!isReadonly) track(target, p);
+      if(isShallow){
+        return res
+      }
+        if(typeof res === 'object'&&res!==null){
+          return isReadonly?readonly(res):reactive(res)
+        }
+        return res
     },
     set(target, p, value, receiver) {
+      if(isReadonly){
+        console.warn(`${p}是只读的`)
+        return true
+      }
       const oldVal = target[p]
       const type=Object.prototype.hasOwnProperty.call(target,p)?'SET':'ADD'
       // 在设置后触发依赖
@@ -76,6 +87,10 @@ const reactive = (data) => {
       return Reflect.ownKeys(target)
     },
     deleteProperty(target, p) {
+      if(isReadonly){
+        console.warn(`${p}是只读的`)
+        return true
+      }
       const hadKey = Object.prototype.hasOwnProperty.call(target,p)
       const res=Reflect.deleteProperty(target,p)
       if(res&&hadKey){
@@ -84,8 +99,18 @@ const reactive = (data) => {
       return res
     }
   });
+}
+const reactive = (obj) => {
+  return createReactive(obj)
 };
+const shallowReactive=(obj)=>{
+  return createReactive(obj,true)
+}
+const readonly = (obj) => {
+  return createReactive(obj,false,true)
+};
+const shallowReadonly=(obj)=>{
+  return createReactive(obj,true,true)
+}
 
-export default reactive;
-
-export { track, trigger };
+export { track, trigger,reactive,shallowReactive,readonly,shallowReadonly };
