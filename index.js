@@ -1,16 +1,13 @@
-import { reactive, effect, computed } from './packages/reactivity/index.js';
-let data = {
-  count: 0,
-  num: 10,
-};
+import {effect, ref} from "./packages/reactivity/index.js";
 
-const obj = reactive(data);
+function renderer(domString, container) {
+    container.innerHTML = domString
+}
 
-const price = computed(() => obj.count * obj.num);
+const count = ref(1)
 
-console.log(price.value);
+effect(() => {
+    renderer(`<h1>${count.value}</h1>`, document.querySelector('#app'))
+})
 
-window.setTimeout(() => {
-  obj.count = 100;
-  console.log(price.value);
-}, 2000);
+window.setTimeout(() => count.value = 2, 2000)
