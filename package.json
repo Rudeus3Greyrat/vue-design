@@ -1,0 +1,21 @@
+{
+  "name": "vue-design",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rudeus3Greyrat/vue-design.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Rudeus3Greyrat/vue-design/issues"
+  },
+  "homepage": "https://github.com/Rudeus3Greyrat/vue-design#readme"
+}

@@ -1,13 +1,32 @@
-import {effect, ref} from "./packages/reactivity/index.js";
+import {renderer} from "./packages/renderer/index.js";
 
-function renderer(domString, container) {
-    container.innerHTML = domString
+const vnode = {
+    type: 'h1',
+    props: {
+        id: 'foo',
+        class: ['text', {baz: true, foo: false}],
+        style: [
+            'color:red',
+            {
+                fontsize: '40px'
+            }
+        ],
+        onClick: () => {
+            console.log('clicked1')
+        },
+    },
+    children: [
+        {
+            type: 'input',
+            props: {
+                id: 'text',
+                disabled: '',
+                form: 'form'
+            },
+            children: []
+        }
+    ]
 }
 
-const count = ref(1)
+renderer.render(vnode, document.querySelector('#app'))
 
-effect(() => {
-    renderer(`<h1>${count.value}</h1>`, document.querySelector('#app'))
-})
-
-window.setTimeout(() => count.value = 2, 2000)
