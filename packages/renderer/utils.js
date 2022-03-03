@@ -50,9 +50,14 @@ const unmount = (vnode) => {
     if (parent) parent.removeChild(el)
 }
 
+const isSameNode = (n1, n2) => {
+    return n1.type === n2.type && n1.key && n1.key === n2.key
+}
+
 export {
     shouldSetAsProps,
     normalizeClass,
     normalizeStyle,
-    unmount
+    unmount,
+    isSameNode
 }

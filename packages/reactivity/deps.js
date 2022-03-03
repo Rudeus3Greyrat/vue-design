@@ -86,7 +86,7 @@ export const track = (target, key) => {
     // 判断对应结构是否存在，不存在则新建
     let depsMap = bucket.get(target);
     if (!depsMap) bucket.set(target, (depsMap = new Map()));
-    let deps = depsMap[key];
+    let deps = depsMap.get(key);
     if (!deps) depsMap.set(key, (deps = new Set()));
     // 最终目的是把当前的effect收集进入依赖集合
     deps.add(activeEffect);

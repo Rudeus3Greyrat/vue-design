@@ -1,32 +1,47 @@
 import {renderer} from "./packages/renderer/index.js";
+import {effect, reactive} from "./packages/reactivity/index.js";
 
-const vnode = {
-    type: 'h1',
-    props: {
-        id: 'foo',
-        class: ['text', {baz: true, foo: false}],
-        style: [
-            'color:red',
-            {
-                fontsize: '40px'
-            }
-        ],
-        onClick: () => {
-            console.log('clicked1')
-        },
-    },
+const oldVnode = {
+    type: "div",
     children: [
         {
-            type: 'input',
-            props: {
-                id: 'text',
-                disabled: '',
-                form: 'form'
-            },
-            children: []
-        }
+            type: 'p',
+            children: '1'
+        },
+        {
+            type: 'p',
+            children: '2'
+        },
+        {
+            type: 'p',
+            children: '3'
+        },
     ]
 }
 
-renderer.render(vnode, document.querySelector('#app'))
+const newVnode = {
+    type: "div",
+    children: [
+        {
+            type: 'p',
+            children: '4'
+        },
+        {
+            type: 'p',
+            children: '5'
+        },
+    ]
+}
+
+const data = {
+    vnode: oldVnode
+}
+
+const obj = reactive(data)
+
+effect(
+    () => renderer.render(obj.vnode, document.querySelector('#app'))
+)
+
+window.setTimeout(() => obj.vnode = newVnode, 2000)
 

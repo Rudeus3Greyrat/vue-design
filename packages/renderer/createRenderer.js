@@ -1,10 +1,10 @@
-import {normalizeClass, normalizeStyle, shouldSetAsProps, unmount} from "./utils.js";
+import {isSameNode, normalizeClass, normalizeStyle, shouldSetAsProps, unmount} from "./utils.js";
 import {Comment, Fragment, Text} from "./vnode.js";
 
 const createRenderer = (options) => {
     const {createElement, insert, setElementText, patchProps, createText, setText, createComment, setComment} = options
 
-    const patch = (n1, n2, container) => {
+    const patch = (n1, n2, container, anchor) => {
         console.log('old vnode', n1)
         console.log('new vnode', n2)
         if (n1 && n1.type !== n2.type) {
@@ -15,7 +15,7 @@ const createRenderer = (options) => {
         if (typeof type === 'string') {
             // new vnode is of html element
             if (!n1) {
-                mountElement(n2, container)
+                mountElement(n2, container, anchor)
             } else {
                 patchElement(n1, n2)
             }
@@ -57,7 +57,7 @@ const createRenderer = (options) => {
         }
     }
 
-    const mountElement = (vnode, container) => {
+    const mountElement = (vnode, container, anchor) => {
         const {type, children} = vnode
         const el = vnode.el = createElement(type)
 
@@ -73,7 +73,7 @@ const createRenderer = (options) => {
             }
         }
 
-        insert(el, container)
+        insert(el, container, anchor)
     }
     const patchElement = (n1, n2) => {
         const el = n2.el = n1.el
@@ -102,9 +102,8 @@ const createRenderer = (options) => {
             setElementText(container, n2.children)
         } else if (Array.isArray(n2.children)) {
             if (Array.isArray((n1.children))) {
-                // todo core diff
-                n1.children.forEach(child => unmount(child))
-                n2.children.forEach(child => patch(null, child, container))
+                // core diff
+                patchKeyedChildren3(n1.children, n2.children, container)
             } else {
                 setElementText(container, '')
                 n2.children.forEach(child => patch(null, child, container))
@@ -115,6 +114,151 @@ const createRenderer = (options) => {
             } else if (typeof n1.children === 'string') {
                 setElementText(container, '')
             }
+        }
+    }
+
+    // core diff-simple diff
+    const patchKeyedChildren1 = (oldChildren, newChildren, container) => {
+        const oldLen = oldChildren.length
+        const newLen = newChildren.length
+        let lastIndex = 0
+        for (let i = 0; i < newLen; i++) {
+            const newVnode = newChildren[i]
+            let find = false
+            for (let j = 0; j < oldLen; j++) {
+                const oldVnode = oldChildren[j]
+                if (isSameNode(oldVnode, newVnode)) {
+                    find = true
+                    patch(oldVnode, newVnode, container)
+                    if (j < lastIndex) {
+                        // move node
+                        const prevNode = newChildren[i - 1]
+                        if (prevNode) {
+                            const anchor = prevNode.el.nextSibling
+                            insert(newVnode.el, container, anchor)
+                        }
+                    }
+                    lastIndex = Math.max(lastIndex, j)
+                    break
+                }
+            }
+            if (!find) {
+                //  add new node
+                const prevNode = newChildren[i - 1]
+                let anchor
+                if (prevNode) {
+                    anchor = prevNode.el.nextSibling
+                } else {
+                    anchor = container.firstChild
+                }
+                patch(null, newVnode, container, anchor)
+            }
+        }
+        // remove old not used dom noe
+        for (let i = 0; i < oldLen; i++) {
+            const oldVnode = oldChildren[i]
+            let find = false
+            for (let j = 0; j < newLen; j++) {
+                const newVnode = newChildren[j]
+                if (isSameNode(oldVnode, newVnode)) {
+                    find = true
+                    break
+                }
+            }
+            // not used dom
+            if (!find) {
+                unmount(oldVnode)
+            }
+        }
+    }
+    //core diff-two end diff
+    const patchKeyedChildren2 = (oldChildren, newChildren, container) => {
+        let oldStartIdx = 0
+        let oldEndIdx = oldChildren.length - 1
+        let newStartIdx = 0
+        let newEndIdx = newChildren.length - 1
+
+        let oldStartVNode = oldChildren[oldStartIdx]
+        let oldEndVNode = oldChildren[oldEndIdx]
+        let newStartVNode = newChildren[newStartIdx]
+        let newEndVNode = newChildren[newEndIdx]
+
+        while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+            if (!oldStartVNode) {
+                oldStartVNode = oldChildren[++oldStartIdx]
+            } else if (isSameNode(oldStartVNode, newStartVNode)) {
+                patch(oldStartVNode, newStartVNode, container)
+                oldStartVNode = oldChildren[++oldStartIdx]
+                newStartVNode = newChildren[++newStartIdx]
+            } else if (isSameNode(oldEndVNode, newEndVNode)) {
+                patch(oldEndVNode, newEndVNode, container)
+                oldEndVNode = oldChildren[--oldEndIdx]
+                newEndVNode = newChildren[--newEndIdx]
+            } else if (isSameNode(oldStartVNode, newEndVNode)) {
+                patch(oldStartVNode, newEndVNode, container)
+                insert(oldStartVNode.el, container, oldEndVNode.el.nextSibling)
+                oldStartVNode = oldChildren[++oldStartIdx]
+                newEndVNode = newChildren[--newEndIdx]
+            } else if (isSameNode(oldEndVNode, newStartVNode)) {
+                patch(oldEndVNode, newStartVNode, container)
+                insert(oldEndVNode, container, oldStartVNode.el)
+                oldEndVNode = oldChildren[--oldEndIdx]
+                newStartVNode = newChildren[++newStartIdx]
+            } else {
+                const idxInOld = oldChildren.findIndex(c => isSameNode(c, newStartVNode))
+                if (idxInOld > 0) {
+                    patch(oldChildren[idxInOld], newStartVNode, container)
+                    insert(oldChildren[idxInOld].el, container, oldStartVNode.el)
+                    oldChildren[idxInOld] = undefined
+                } else {
+                    patch(null, newStartVNode, container, oldStartVNode.el)
+                }
+                newStartVNode = newChildren[++newStartIdx]
+            }
+        }
+
+        if (oldStartIdx > oldEndIdx && newStartIdx <= newEndIdx) {
+            for (let i = newStartIdx; i <= newEndIdx; i++) {
+                patch(null, newChildren[i], container, oldStartVNode.el)
+            }
+        } else if (newStartIdx > newEndIdx && oldStartIdx <= oldEndIdx) {
+            for (let i = oldStartIdx; i <= oldEndIdx; i++) {
+                unmount(oldChildren[i])
+            }
+        }
+    }
+    // core diff-fast diff
+    const patchKeyedChildren3 = (oldChildren, newChildren, container) => {
+        // patch pre vnode
+        let j = 0
+        while (oldChildren[j].key === newChildren[j].key) {
+            patch(oldChildren[j], newChildren[j], container)
+            j += 1
+        }
+
+        // patch post vnode
+        let oldEnd = oldChildren.length - 1
+        let newEnd = newChildren.length - 1
+        while (oldChildren[oldEnd].key === newChildren[newEnd].key) {
+            patch(oldChildren[oldEnd], newChildren[newEnd])
+            oldEnd -= 1
+            newEnd -= 1
+        }
+
+        // handle with remaining nodes
+        if (oldEnd < j && newEnd >= j) {
+            // mount all remaining new nodes
+            const anchor = (newEnd + 1) < newChildren.length ? newChildren[newEnd + 1].el : null
+            for (let i = j; i <= newEnd; i++) {
+                patch(null, newChildren[i], container, anchor)
+            }
+        } else if (newEnd < j && oldEnd >= j) {
+            // unmount all remaining old nodes
+            for (let i = j; i <= oldEnd; i++) {
+                unmount(oldChildren[i])
+            }
+        } else {
+            // todo none ideal i.e. remaining nodes for both old children and new children
         }
     }
     const mountComponent = (vnode, container) => {
