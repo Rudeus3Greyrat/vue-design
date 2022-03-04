@@ -95,6 +95,29 @@ const lis = (arr) => {
   return result;
 };
 
+const resolveProps = (options, propsData) => {
+  const props = {};
+  const attrs = {};
+  for (const key in propsData) {
+    if (key in options || /^on/.test(key)) {
+      props[key] = propsData[key];
+    } else {
+      attrs[key] = propsData[key];
+    }
+  }
+  return { props, attrs };
+};
+
+const hasPropsChange = (prevProps, nextProps) => {
+  const prevKeys = Object.keys(prevProps);
+  const nextKeys = Object.keys(nextProps);
+  if (prevKeys.length !== nextKeys.length) return true;
+  nextKeys.forEach((key) => {
+    if (nextProps[key] !== prevProps[key]) return true;
+  });
+  return false;
+};
+
 export {
   shouldSetAsProps,
   normalizeClass,
@@ -102,4 +125,6 @@ export {
   unmount,
   isSameNode,
   lis,
+  resolveProps,
+  hasPropsChange,
 };

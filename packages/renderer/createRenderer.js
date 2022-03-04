@@ -3,10 +3,18 @@ import {
   lis,
   normalizeClass,
   normalizeStyle,
+  resolveProps,
   shouldSetAsProps,
   unmount,
+  hasPropsChanged,
 } from './utils.js';
 import { Comment, Fragment, Text } from './vnode.js';
+import { effect, reactive, shallowReactive } from '../reactivity/index.js';
+import { queueJob } from './scheduler.js';
+import { shallowReadonly } from '../reactivity/reactive.js';
+
+let currentInstance = null;
+const setCurrentInstance = (instance) => (currentInstance = instance);
 
 const createRenderer = (options) => {
   const {
@@ -64,9 +72,9 @@ const createRenderer = (options) => {
     } else if (typeof type === 'object') {
       // new vnode is of component
       if (!n1) {
-        mountComponent(n2, container);
+        mountComponent(n2, container, anchor);
       } else {
-        patchComponent(n1, n2);
+        patchComponent(n1, n2, anchor);
       }
     } else if (typeof type === 'xxx') {
     }
@@ -276,7 +284,7 @@ const createRenderer = (options) => {
         unmount(oldChildren[i]);
       }
     } else {
-      // todo none ideal i.e. remaining nodes for both old children and new children
+      // none ideal i.e. remaining nodes for both old children and new children
       const count = newEnd - j + 1;
       const source = new Array(count).fill(-1);
       const oldStart = j;
@@ -312,35 +320,155 @@ const createRenderer = (options) => {
         } else {
           unmount(oldVNode);
         }
-      }
-      if (moved) {
-        // move dom
-        const seq = lis(source);
-        let s = seq.length - 1;
-        let i = count - 1;
-        for (; i >= 0; i -= 1) {
-          if (source[i] === -1) {
-            const pos = i + newStart;
-            const nextPos = pos + 1;
-            const anchor =
-              nextPos < newChildren.length ? newChildren[nextPos].el : null;
-            patch(null, newChildren[pos], container, anchor);
-          } else if (i !== seq[s]) {
-            // need move
-            const pos = i + newStart;
-            const nextPos = pos + 1;
-            const anchor =
-              nextPos < newChildren.length ? newChildren[nextPos].el : null;
-            insert(newChildren[pos], container, anchor);
-          } else {
-            s -= 1;
+        if (moved) {
+          // move dom
+          const seq = lis(source);
+          let s = seq.length - 1;
+          let i = count - 1;
+          for (; i >= 0; i -= 1) {
+            if (source[i] === -1) {
+              const pos = i + newStart;
+              const nextPos = pos + 1;
+              const anchor =
+                nextPos < newChildren.length ? newChildren[nextPos].el : null;
+              patch(null, newChildren[pos], container, anchor);
+            } else if (i !== seq[s]) {
+              // need move
+              const pos = i + newStart;
+              const nextPos = pos + 1;
+              const anchor =
+                nextPos < newChildren.length ? newChildren[nextPos].el : null;
+              insert(newChildren[pos], container, anchor);
+            } else {
+              s -= 1;
+            }
           }
         }
       }
     }
   };
-  const mountComponent = (vnode, container) => {};
-  const patchComponent = (n1, n2) => {};
+  const mountComponent = (vnode, container, anchor) => {
+    const { type: componentOptions } = vnode;
+    const {
+      render,
+      data,
+      props: propsOption,
+      setup,
+      beforeCreate,
+      created,
+      beforeMount,
+      mounted,
+      beforeUpdate,
+      updated,
+    } = componentOptions;
+    const state = reactive(data());
+    const { props, attrs } = resolveProps(propsOption, vnode.props);
+    // component instance
+    const instance = {
+      state,
+      props: shallowReactive(props),
+      isMounted: false,
+      subTree: null,
+      slots,
+      mounted: [],
+    };
+    const emit = (event, ...payload) => {
+      const eventName = `on${event[0].toUpperCase() + event.slice(1)}`;
+      const handler = instance.props[eventName];
+      if (handler) {
+        handler(...payload);
+      } else {
+        console.error('事件不存在');
+      }
+    };
+    const onMounted = (fn) => {
+      if (currentInstance) {
+        currentInstance.mounted.push(fn);
+      } else {
+        console.error('onMounted函数只能在setup中调用');
+      }
+    };
+    const slots = vnode.children || {};
+    const setupContext = { attrs, emit, slots };
+    setCurrentInstance(instance);
+    const setupResult = setup(shallowReadonly(instance.props), setupContext);
+    setCurrentInstance(null);
+    let setupState = null;
+    if (typeof setupResult === 'function') {
+      if (render) {
+        console.log('setup返回渲染函数，render选项将被忽略');
+      }
+      render = setupResult;
+    } else {
+      setupState = setupResult;
+    }
+    const renderContext = new Proxy(instance, {
+      get(t, k, r) {
+        const { state, props, slots } = t;
+        if (k === '$slots') return slots;
+        if (state && k in state) {
+          return state[k];
+        } else if (k in props) {
+          return props[k];
+        } else if (setupState && k in setupState) {
+          return setupState[k];
+        } else {
+          console.error('不存在');
+        }
+      },
+      set(t, k, v, r) {
+        const { state, props } = t;
+        if (state && k in state) {
+          state[k] = v;
+        } else if (k in props) {
+          props[k] = v;
+        } else if (setupState && k in setupState) {
+          setupState[k] = v;
+        } else {
+          console.error('不存在');
+        }
+      },
+    });
+    beforeCreate && beforeCreate();
+    vnode.component = instance;
+    created && created.call(renderContext);
+    effect(
+      () => {
+        const subTree = render.call(state, state);
+        if (!instance.isMounted) {
+          // mount
+          beforeMount && beforeMount.call(renderContext);
+          patch(null, subTree, container, anchor);
+          mounted && mounted.call(renderContext);
+          instance.mounted &&
+            instance.mounted.forEach((hook) => hook.call(renderContext));
+          instance.isMounted = true;
+        } else {
+          // update
+          beforeUpdate && beforeUpdate.call(renderContext);
+          patch(instance.subTree, subTree, container, anchor);
+          updated && updated.call(renderContext);
+        }
+        instance.subTree = subTree;
+      },
+      {
+        scheduler: queueJob,
+      }
+    );
+  };
+  const patchComponent = (n1, n2, anchor) => {
+    const instance = (n2.component = n1.component);
+    const { props } = instance;
+    if (hasPropsChanged(n1.props, n2.props)) {
+      const { props: nextProps } = resolveProps(n2.type.props, n2.props);
+      for (let key in nextProps) {
+        props[key] = nextProps[key];
+      }
+      for (let key in props) {
+        if (!(key in nextProps)) delete props[key];
+      }
+    }
+  };
   const render = (vnode, container) => {
     if (vnode) {
       patch(container._vnode, vnode, container);
