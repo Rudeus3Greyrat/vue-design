@@ -69,7 +69,7 @@ const createRenderer = (options) => {
       } else {
         patchChildren(n1, n2, container);
       }
-    } else if (typeof type === 'object') {
+    } else if (typeof type === 'object' || typeof type === 'function') {
       // new vnode is of component
       if (!n1) {
         mountComponent(n2, container, anchor);
@@ -349,6 +349,13 @@ const createRenderer = (options) => {
   };
   const mountComponent = (vnode, container, anchor) => {
     const { type: componentOptions } = vnode;
+    const isFunctional = typeof componentOptions === 'function';
+    if (isFunctional) {
+      componentOptions = {
+        render: componentOptions,
+        props: componentOptions.props,
+      };
+    }
     const {
       render,
       data,

@@ -44,6 +44,9 @@ const unmount = (vnode) => {
   if (vnode.type === Fragment) {
     vnode.children.forEach((child) => unmount(child));
     return;
+  } else if (typeof vnode.type === 'object') {
+    unmount(vnode.component.subTree);
+    return;
   }
   const el = vnode.el;
   const parent = el.parentNode;
