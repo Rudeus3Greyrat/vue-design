@@ -1,4 +1,4 @@
-import { Text } from './vnode';
+import {Text} from './vnode';
 
 const defineAsyncComponent = (options) => {
   if (typeof options === 'function') {
@@ -7,7 +7,7 @@ const defineAsyncComponent = (options) => {
     };
   }
 
-  const { loader, onError, errorComponent, loadingComponent } = options;
+  const {loader, onError, errorComponent, loadingComponent} = options;
 
   let InnerComp = null;
 
@@ -48,35 +48,35 @@ const defineAsyncComponent = (options) => {
       }
 
       load()
-        .then((c) => {
-          InnerComp = c;
-          loaded.value = true;
-        })
-        .catch((err) => {
-          error.value = err;
-        })
-        .finally(() => {
-          loading.value = false;
-          clearTimeout(loadingTimer);
-        });
+          .then((c) => {
+            InnerComp = c;
+            loaded.value = true;
+          })
+          .catch((err) => {
+            error.value = err;
+          })
+          .finally(() => {
+            loading.value = false;
+            clearTimeout(loadingTimer);
+          });
 
       let timer = null;
       if (options.timeout) {
         timer = setTimeout(() => {
           const err = new Error(
-            `Async component timed out after ${options.timeout}ms`
+              `Async component timed out after ${options.timeout}ms`
           );
           error.value = err;
         }, options.timeout);
       }
-      const placeholer = { type: Text, children: '' };
+      const placeholer = {type: Text, children: ''};
       return () => {
         if (loaded.value) {
-          return { type: InnerComp };
+          return {type: InnerComp};
         } else if (error.value && errorComponent) {
-          return { type: errorComponent, props: { error: error.value } };
+          return {type: errorComponent, props: {error: error.value}};
         } else if (loading.value && loadingComponent) {
-          return { type: loadingComponent };
+          return {type: loadingComponent};
         } else {
           return placeholer;
         }
@@ -84,3 +84,5 @@ const defineAsyncComponent = (options) => {
     },
   };
 };
+
+export {defineAsyncComponent}
